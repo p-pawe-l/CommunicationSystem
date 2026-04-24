@@ -45,16 +45,19 @@ namespace droning {
         inline auto getChannel(const std::string& client_id) -> __sys_client_channel& {
             return clients_.at(client_id);
         }
+
+        /**
+        * @brief Takes snapshot of collection of all clients in the system
+        */
+        inline auto getSnapClient() -> std::unordered_map<std::string, struct __sys_client_channel> {
+            std::lock_guard<std::mutex> client_collection_guard(runtime_mutex_);
+            return clients_;
+        }
         
         auto routeToSharedBuf() -> void {
             while (is_running_) {
-                std::unordered_map<std::string, struct __sys_client_channel> cl_snap;
-                {
-                    std::lock_guard<std::mutex> client_collection_guard(runtime_mutex_);
-                    cl_snap = clients_;
-                }
-
-                for (auto& [_, channel] : cl_snap) {
+                for (auto& [_, channel] : getSnapClient()) {
+                    
                     std::optional<system_message<PacketType>> msg;
                     {
                         std::lock_guard<std::mutex> read_guard(*(channel.read_mutex_));

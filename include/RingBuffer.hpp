@@ -3,13 +3,14 @@
 #include <optional>
 #include <utility>
 #include <memory>
+#include <mutex>
 
 
 namespace droning {
 
     template <typename T>
     class RingBuffer {
-    private:
+    protected:
         std::size_t buffer_size_;
         std::unique_ptr<T[]> buffer_;
 
@@ -24,7 +25,7 @@ namespace droning {
             buffer_ = std::make_unique<T[]>(buf_size);
             buffer_size_ = buf_size;
         }
-        ~RingBuffer() = default;
+        virtual ~RingBuffer() = default;
 
         auto write(const T& data) -> void {
             if (is_full_) {
@@ -65,4 +66,43 @@ namespace droning {
         [[nodiscard]] auto isEmpty() const -> bool { return is_empty_; }
         [[nodiscard]] auto isFull() const -> bool { return is_full_; }
     };
+
+
+    template <typename T>
+    class SafeRingBuffer : public RingBuffer<T> {
+    private:
+        mutable std::mutex buf_mutex_;
+
+    public:
+        SafeRingBuffer(std::size_t buf_size):
+        RingBuffer<T>(std::move(buf_size))
+        {}
+        ~SafeRingBuffer() override {}
+
+        auto safeWrite(const T& data) -> void {
+            std::lock_guard<std::mutex> guard(buf_mutex_);
+            RingBuffer<T>::write(data);
+        }
+
+        auto safeWrite(T&& data) -> void {
+            std::lock_guard<std::mutex> guard(buf_mutex_);
+            RingBuffer<T>::write(std::move(data));
+        }
+
+        auto safeRead() -> std::optional<T> {
+            std::lock_guard<std::mutex> guard(buf_mutex_);
+            return RingBuffer<T>::read();
+        }
+        
+        [[nodiscard]] auto isEmpty() const -> bool { 
+            std::lock_guard<std::mutex> guard(buf_mutex_);
+            return RingBuffer<T>::is_empty_; 
+        }
+
+        [[nodiscard]] auto isFull() const -> bool { 
+            std::lock_guard<std::mutex> guard(buf_mutex_);
+            return RingBuffer<T>::is_full_; 
+        }
+    };
+
 }

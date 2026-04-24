@@ -3,6 +3,7 @@
 #include "SystemClient.hpp"
 #include "RingBuffer.hpp"
 #include "Message.hpp"
+#include <exception>
 #include <stdexcept>
 #include <thread>
 #include <unordered_map>
@@ -23,16 +24,21 @@ namespace droning {
         * @brief Client descriptor in the system
         */
         struct __sys_client_channel {
-            std::shared_ptr<RingBuffer<system_message<PacketType>>> read_buf_;   /**< Buffer to read data from client   */
-            std::shared_ptr<RingBuffer<system_message<PacketType>>> write_buf_;  /**< Buffer to send data to client     */
+            std::shared_ptr<SafeRingBuffer<system_message<PacketType>>> read_buf_;   /**< Buffer to read data from client   */
+            std::shared_ptr<SafeRingBuffer<system_message<PacketType>>> write_buf_;  /**< Buffer to send data to client     */
 
-            std::shared_ptr<std::mutex> read_mutex_;                             /**< Reading data from client - mutex  */
-            std::shared_ptr<std::mutex> write_mutex_;                            /**< Sending data from client - mutex  */
+            std::shared_ptr<std::mutex> read_mutex_;                                 /**< Reading data from client - mutex  */
+            std::shared_ptr<std::mutex> write_mutex_;                                /**< Sending data from client - mutex  */
+        };
+
+        enum class system_notification : uint8_t {
+            TURN_ON = 0,
+            TURN_OFF = 1
         };
 
     private:
         std::unordered_map<std::string, struct __sys_client_channel> clients_;
-        std::unique_ptr<RingBuffer<system_message<PacketType>>> routing_buf_;   
+        std::unique_ptr<SafeRingBuffer<system_message<PacketType>>> routing_buf_;   
 
         std::atomic<bool> is_running_;
     
@@ -41,6 +47,8 @@ namespace droning {
         
         std::mutex runtime_mutex_;
         std::mutex routing_mutex_;
+
+        std::size_t num_clients_;
 
         inline auto getChannel(const std::string& client_id) -> __sys_client_channel& {
             return clients_.at(client_id);
@@ -54,30 +62,28 @@ namespace droning {
             return clients_;
         }
         
+        /**
+        * @brief Routes packages from clients->system buffer to shared system buffer  
+        */
         auto routeToSharedBuf() -> void {
             while (is_running_) {
                 for (auto& [_, channel] : getSnapClient()) {
-                    
-                    std::optional<system_message<PacketType>> msg;
-                    {
-                        std::lock_guard<std::mutex> read_guard(*(channel.read_mutex_));
-                        msg = channel.read_buf_->read();
-                    }
+                    std::optional<system_message<PacketType>> msg = channel.read_buf_->safeRead();
 
                     if (msg == std::nullopt) continue;
-                    if (msg->action == system_message_action::DETACH) {
-                        try {
-                            detach_client(msg->sender);
-                            std::cout << "Client: " << msg->sender << " detach\n";
-                        } catch (std::out_of_range& _) {
-                            std::cout << "Client: " << msg->sender << " detachment failed!\n";
-                        }
-                        continue;
-                    }
-
-                    {
-                        std::lock_guard<std::mutex> routing_guard(routing_mutex_);
-                        routing_buf_->write(std::move(msg.value()));
+                    switch (msg->action) {
+                        case system_message_action::DETACH:
+                            try { 
+                                detach_client(msg->sender); 
+                                std::cout << "Client: " << msg->sender << "detached.\n";
+                            }
+                            catch (std::out_of_range& _) {
+                                std::cout << "Client: " << msg->sender << " detachment failed!\n";
+                            }
+                            break;
+                        case system_message_action::DATA_ACTION:
+                            routing_buf_->safeWrite(std::move(msg.value()));
+                            break;
                     }
                 }
             }
@@ -98,9 +104,13 @@ namespace droning {
             }
         };
 
+        auto notify_clients() -> void {}
+
     public:
-        System(): is_running_(false) {
-            routing_buf_ = std::make_unique<RingBuffer<system_message<PacketType>>>(Config::getInstance()->getRingBufSize());
+        System(std::size_t route_buf_multi_ = 5): is_running_(false), num_clients_(0) {
+            routing_buf_ = std::make_unique<SafeRingBuffer<system_message<PacketType>>>(
+                Config::getInstance()->getRingBufSize() * route_buf_multi_
+            );
         }
         ~System() {
             is_running_ = false;
@@ -113,14 +123,17 @@ namespace droning {
                 is_running_ = true;
                 system_worker_ = std::thread(&droning::System<PacketType>::routeToReceivers, this);
                 routing_worker_ = std::thread(&droning::System<PacketType>::routeToSharedBuf, this);
+                notify_clients(system_notification::TURN_ON);
             }
         } 
 
         auto stop() -> void {
             if (is_running_) {
                 is_running_ = false;
+                notify_clients(system_notification::TURN_OFF);
                 if (system_worker_.joinable()) system_worker_.join();
                 if (routing_worker_.joinable()) routing_worker_.join();
+                
             }
         }
 
@@ -133,7 +146,14 @@ namespace droning {
             };
             {
                 std::lock_guard<std::mutex> guard(runtime_mutex_);
-                clients_.insert({client->getClientId(), std::move(cl_des)});
+                try {
+                    clients_.insert({client->getClientId(), std::move(cl_des)});
+                    num_clients_++;
+                } catch (std::exception& e) {
+                    std::cout << "Client: " << client->getClientId() << " failed to be inserted!\n";
+                    std::cout << e.what() << std::endl;
+                    return;
+                }
             }
         }
 

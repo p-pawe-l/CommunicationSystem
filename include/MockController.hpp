@@ -1,13 +1,12 @@
-#pragma once 
+#pragma once
 
 #include "SystemClient.hpp"
 #include "Message.hpp"
 #include <optional>
-#include <thread>
 #include <iostream>
 
 namespace droning {
-    
+
     class MockController : public SystemClient<system_message<drone_data>> {
     private:
         std::size_t n_probes_;
@@ -15,7 +14,7 @@ namespace droning {
 
         auto getDroneData() -> droning::drone_data {
             // MOCKED - ASKS SYSTEM TO FETCH DRONE DATA
-            
+
             return {
                     .dpos = {
                         .x_pos = 10 * n_probes_,
@@ -50,9 +49,9 @@ namespace droning {
             };
         }
     public:
-        MockController(std::string controller_id): 
+        MockController(std::string controller_id):
         SystemClient(std::move(controller_id)),
-        n_probes_(0) 
+        n_probes_(0)
         {}
 
         ~MockController() override { stop(); }
@@ -61,14 +60,14 @@ namespace droning {
             system_message<drone_data> msg = generateProbe();
             ++n_probes_;
 
-            SystemClient::write_buffer_->write(msg);
+            SystemClient::write_buffer_->safeWrite(msg);
         }
 
         auto processData() -> void override {
-            std::optional<system_message<drone_data>> msg = read_buffer_->read();
+            std::optional<system_message<drone_data>> msg = read_buffer_->safeRead();
             if (msg == std::nullopt) return;
             drone_data_ = std::move(msg->data);
-            
+
             std::cout << "-------- CONTROLLER --------" << std::endl;
             std::cout << drone_data_ << std::endl;
         }

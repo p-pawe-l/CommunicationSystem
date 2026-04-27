@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 #include <cstddef>
 #include <ostream>
@@ -22,10 +22,27 @@ namespace droning {
     };
 
     namespace drone_data_structs {
-        struct __drone_position { std::size_t x_pos; std::size_t y_pos; std::size_t z_pos; };
-        struct __drone_velocity { std::size_t x_vel; std::size_t y_vel; std::size_t z_vel; };
-        struct __drone_acceleration { std::size_t x_acc; std::size_t y_acc; std::size_t z_acc; };
-        struct __drone_engine { std::size_t thrust; std::size_t roll; std::size_t pitch; std::size_t yaw; };
+        struct __drone_position {
+            std::size_t x_pos;
+            std::size_t y_pos;
+            std::size_t z_pos;
+        };
+        struct __drone_velocity {
+            std::size_t x_vel;
+            std::size_t y_vel;
+            std::size_t z_vel;
+        };
+        struct __drone_acceleration {
+            std::size_t x_acc;
+            std::size_t y_acc;
+            std::size_t z_acc;
+        };
+        struct __drone_engine {
+            std::size_t thrust;
+            std::size_t roll;
+            std::size_t pitch;
+            std::size_t yaw;
+        };
     }
 
     struct drone_data {

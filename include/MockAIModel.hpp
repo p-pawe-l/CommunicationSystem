@@ -23,7 +23,7 @@ namespace droning {
         ~MockAIModel() override { stop(); }
 
         auto processData() -> void override {
-            std::optional<system_message<drone_data>> msg = read_buffer_->read();
+            std::optional<system_message<drone_data>> msg = read_buffer_->safeRead();
             if (msg == std::nullopt) return;
 
             train_model(&msg->data);
@@ -40,7 +40,7 @@ namespace droning {
         auto generateData() -> void override {
             if (!pending_response_.has_value()) return;
 
-            write_buffer_->write(std::move(*pending_response_));
+            write_buffer_->safeWrite(std::move(*pending_response_));
             pending_response_.reset();
         }
     };

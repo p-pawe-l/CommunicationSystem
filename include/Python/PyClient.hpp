@@ -188,24 +188,26 @@ namespace droning::python {
         [[nodiscard]] auto isRunnning() -> bool { return is_running_; }
 
         /**
-         * @brief Returns client inbox buffer.
+         * @brief Returns reference to client inbox buffer.
          *
-         * The returned unique pointer is owned by PyClient. Callers should use
-         * it as a borrowed handle and must not reset or move from it.
+         * The buffer is owned by PyClient. Callers receive a borrowed
+         * reference that can be used for reading or writing messages, but the
+         * reference must not outlive the client.
          *
-         * @return u_ptr<SafeRingBuffer<PythonPacketType>>&: Inbox buffer handle.
+         * @return SafeRingBuffer<PythonPacketType>&: Borrowed inbox buffer reference.
          */
-        [[nodiscard]] auto getInboxBuffer() -> u_ptr<SafeRingBuffer<PythonPacketType>>& { return inbox_buf_; }
+        [[nodiscard]] auto getInboxBuffer() -> SafeRingBuffer<PythonPacketType>& { return *inbox_buf_; }
 
         /**
-         * @brief Returns client outbox buffer.
+         * @brief Returns reference to client outbox buffer.
          *
-         * The returned unique pointer is owned by PyClient. Callers should use
-         * it as a borrowed handle and must not reset or move from it.
+         * The buffer is owned by PyClient. Callers receive a borrowed
+         * reference that can be used for reading or writing messages, but the
+         * reference must not outlive the client.
          *
-         * @return u_ptr<SafeRingBuffer<PythonPacketType>>&: Outbox buffer handle.
+         * @return SafeRingBuffer<PythonPacketType>&: Borrowed outbox buffer reference.
          */
-        [[nodiscard]] auto getOutboxBuffer() -> u_ptr<SafeRingBuffer<PythonPacketType>>& { return outbox_buf_; }
+        [[nodiscard]] auto getOutboxBuffer() -> SafeRingBuffer<PythonPacketType>& { return *outbox_buf_; }
 
     private:
         /**
@@ -235,7 +237,6 @@ namespace droning::python {
          * @param start_flag: True starts workers, false joins existing workers.
          */
         auto startStopWorkers(bool start_flag) noexcept -> void {
-            std::lock_guard<std::mutex> guard(runtime_mutex_);
             if (start_flag) {
                 generate_worker_ = std::thread(&PyClient::generateDataLoop, this);
                 process_worker_ = std::thread(&PyClient::processDataLoop, this);
@@ -305,7 +306,12 @@ namespace droning::python {
                 {
                     // Acquiring gil only for execution pythonic function
                     py::gil_scoped_acquire gil;
-                    data = (python_generating_func_.value())();
+                    
+                    try { data = (python_generating_func_.value())(); }
+                    catch (std::exception& e) {
+                        std::cerr << "Error during execution python generating function" << std::endl;
+                        std::cerr << e.what() << std::endl;
+                    }
                 }
 
                 uint8_t res = outbox_buf_->safeWaitWrite(std::move(data));
@@ -327,7 +333,11 @@ namespace droning::python {
                 {
                     // Acquiring gil only for execution pythonic function
                     py::gil_scoped_acquire gil;
-                    (python_processing_func_.value())(std::move(incoming_data));
+                    try { (python_processing_func_.value())(std::move(incoming_data)); } 
+                    catch (std::exception& e) {
+                        std::cerr << "Error during execution python processing function" << std::endl;
+                        std::cerr << e.what() << std::endl;
+                    }
                 }
             }
         }
@@ -341,7 +351,7 @@ namespace droning::python {
 
         /**
          * @brief Notifies system about changes in client state.
-         *
+         * // TODO - implement real usage of this function 
          * @param n: Client state notification.
          */
         auto notifySystem(__client_system_notification&& n) -> void {

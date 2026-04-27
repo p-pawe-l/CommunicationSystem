@@ -33,28 +33,31 @@ namespace droning::python {
         template <typename _T>
         using opt_t = std::optional<_T>;
 
+        template <typename _T>
+        using u_ptr = std::unique_ptr<_T>;
+
         using thread_t = std::thread;
         using atomic_bool_t = std::atomic<bool>;
         using mutex_t = std::mutex;
 
     private:
-        string_t client_id_;                            /** < Identificator in the system */
+        string_t client_id_;                                    /** < Identificator in the system */
         
-        opt_t<py::object> python_generating_func_;      /** < Python generating func */
-        opt_t<py::object> python_processing_func_;      /** < Python processing func */
+        opt_t<py::object> python_generating_func_;              /** < Python generating func */
+        opt_t<py::object> python_processing_func_;              /** < Python processing func */
 
-        SafeRingBuffer<PythonPacketType> inbox_buf_;    /** < Inbox buffer for incoming messages */
-        SafeRingBuffer<PythonPacketType> outbox_buf_;   /** < Outbox buffer for sending message to system */
+        u_ptr<SafeRingBuffer<PythonPacketType>> inbox_buf_;     /** < Inbox buffer for incoming messages */
+        u_ptr<SafeRingBuffer<PythonPacketType>> outbox_buf_;    /** < Outbox buffer for sending message to system */
     
-        PySystem<PythonPacketType>* ptr_system_;        /** < Pointer to connected system */
+        PySystem<PythonPacketType>* ptr_system_;                /** < Pointer to connected system */
 
-        thread_t generate_worker_;                      /** < Thread responsible for generating data */
-        thread_t process_worker_;                       /** < Thread responsible for processing data */
-        mutex_t runtime_mutex_;                         /** < Runtime mutex for thread-safe operations on PyClient */
+        thread_t generate_worker_;                              /** < Thread responsible for generating data */
+        thread_t process_worker_;                               /** < Thread responsible for processing data */
+        mutex_t runtime_mutex_;                                 /** < Runtime mutex for thread-safe operations on PyClient */
 
-        atomic_bool_t is_running_;                      /** < ATOMIC flag for checking is client is running */
-        atomic_bool_t bufs_initialized_;                /** < ATOMIC flag for checking if buffors were initialized */
-        atomic_bool_t start_stop_;                      /** < ATOMIC Flag for automatic starting and stoping client */ 
+        atomic_bool_t is_running_;                              /** < ATOMIC flag for checking is client is running */
+        atomic_bool_t bufs_initialized_;                        /** < ATOMIC flag for checking if buffors were initialized */
+        atomic_bool_t auto_start_;                              /** < ATOMIC Flag for automatic starting and stoping client */ 
     
     public:
         /**
@@ -66,16 +69,16 @@ namespace droning::python {
          * @param ptr_system: Pointer to connected Python system.
          * @param start_stop: Flag for automatic start and stop in constructor/destructor.
          */
-        PyClient(string_t client_id, PySystem<PythonPacketType>* ptr_system, bool start_stop = false): 
+        PyClient(string_t client_id, PySystem<PythonPacketType>* ptr_system, bool auto_start = true): 
         client_id_(std::move(client_id)),
         ptr_system_(std::move(ptr_system)),
         bufs_initialized_(false),
-        start_stop_(start_stop),
+        auto_start_(auto_start),
         python_generating_func_(std::nullopt),
         python_processing_func_(std::nullopt)
         {   
             if (!bufs_initialized_) initBuffers();
-            if (start_stop_) start();
+            if (auto_start_) start();
         }
 
         /**
@@ -90,16 +93,17 @@ namespace droning::python {
          * @param proc_func: Python function used by processing worker.
          * @param start_stop: Flag for automatic start and stop in constructor/destructor.
          */
-        PyClient(string_t client_id, PySystem<PythonPacketType>* ptr_system, py::object gen_func, py::object proc_func, bool start_stop = false):
+        PyClient(string_t client_id, PySystem<PythonPacketType>* ptr_system, py::object gen_func, py::object proc_func, 
+                 bool auto_start = false):
         client_id_(std::move(client_id)),
-        ptr_system_(std::move(ptr_system)),
+        ptr_system_(ptr_system),
         bufs_initialized_(false),
-        start_stop_(start_stop)
+        auto_start_(auto_start)
         {
             assignGeneratingFunc(std::move(gen_func));
             assignProcessingFunc(std::move(proc_func));
             if (!bufs_initialized_) initBuffers();
-            if (start_stop_) start();
+            if (auto_start_) start();
         }
 
         /**
@@ -108,9 +112,7 @@ namespace droning::python {
          * If automatic lifecycle management is enabled, worker threads are
          * stopped before destruction finishes.
          */
-        ~PyClient() {
-            if (start_stop_) stop();
-        }
+        ~PyClient() { stop(); }
 
         /**
          * @brief Starts generating and processing workers.
@@ -118,7 +120,7 @@ namespace droning::python {
          * Checks that both Python worker functions are assigned before
          * launching threads.
          */
-        auto start() noexcept -> void {
+        auto start() -> void {
             checkForWorkersFunctions();
 
             if (!is_running_) {
@@ -135,7 +137,7 @@ namespace droning::python {
          *
          * Closes buffers to wake waiting worker threads, then joins them.
          */
-        auto stop() noexcept -> void {
+        auto stop() -> void {
             if (is_running_) {
                 is_running_ = false;
                 setCloseFlagForBuffers(true);
@@ -183,6 +185,9 @@ namespace droning::python {
          */
         [[nodiscard]] auto isRunnnig() -> bool { return is_running_; }
 
+        [[nodiscard]] auto getInboxBuffer() -> u_ptr<SafeRingBuffer<PythonPacketType>>& { return inbox_buf_; }
+        [[nodiscard]] auto getOutboxBuffer() -> u_ptr<SafeRingBuffer<PythonPacketType>>& { return outbox_buf_; }
+
     private:
         /**
          * @brief Initializes inbox and outbox buffers using configured size.
@@ -191,6 +196,7 @@ namespace droning::python {
             Config* conf = Config::getInstance();
             inbox_buf_ = std::make_unique<SafeRingBuffer<PythonPacketType>>(conf->getRingBufSize());
             outbox_buf_ = std::make_unique<SafeRingBuffer<PythonPacketType>>(conf->getRingBufSize());
+            bufs_initialized_ = true;
         }
 
         /**
@@ -200,8 +206,8 @@ namespace droning::python {
          */
         auto setCloseFlagForBuffers(bool flag) noexcept -> void {
             std::lock_guard<std::mutex> guard(runtime_mutex_);
-            inbox_buf_.setCloseFlag(flag);
-            outbox_buf_.setCloseFlag(flag);
+            inbox_buf_->setCloseFlag(flag);
+            outbox_buf_->setCloseFlag(flag);
         }
 
         /**
@@ -241,12 +247,8 @@ namespace droning::python {
          */
         auto checkForWorkersFunctions() -> void {
             std::string missing_funcs = "";
-            if (python_generating_func_ == std::nullopt) {
-                missing_funcs += "Generating Function,";
-            }
-            if (python_processing_func_ == std::nullopt) {
-                missing_funcs += "Processing Function,";
-            }
+            if (python_generating_func_ == std::nullopt) missing_funcs += "Generating Function,";
+            if (python_processing_func_ == std::nullopt) missing_funcs += "Processing Function,";
             if (missing_funcs != "") {
                 throw std::runtime_error(
                     std::string("Missing functions for PyClient workers!") +
@@ -280,10 +282,14 @@ namespace droning::python {
          */
         auto generateDataLoop() -> void {
             while (is_running_) {
-                py::gil_scoped_acquire gil;
-                PythonPacketType data = (python_generating_func_.value())();
-                uint8_t res = outbox_buf_.safeWaitWrite(std::move(data));
-                        
+                PythonPacketType data;
+                {
+                    // Acquiring gil only for execution pythonic function
+                    py::gil_scoped_acquire gil;
+                    data = (python_generating_func_.value())();
+                }
+
+                uint8_t res = outbox_buf_->safeWaitWrite(std::move(data));
                 if (!handleBufferResult(res, "outbox")) continue;
             }
         }
@@ -295,12 +301,15 @@ namespace droning::python {
          */
         auto processDataLoop() -> void {
             while (is_running_) {
-                py::gil_scoped_acquire gil;
                 PythonPacketType incoming_data;
-                uint8_t res = inbox_buf_.safeWaitRead(&incoming_data);
-                
+                uint8_t res = inbox_buf_->safeWaitRead(&incoming_data);
                 if (!handleBufferResult(res, "inbox")) continue;
-                (python_processing_func_.value())(std::move(incoming_data));
+                
+                {
+                    // Acquiring gil only for execution pythonic function
+                    py::gil_scoped_acquire gil;
+                    (python_processing_func_.value())(std::move(incoming_data));
+                }
             }
         }
 

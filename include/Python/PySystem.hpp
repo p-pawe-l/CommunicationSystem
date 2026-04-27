@@ -12,9 +12,10 @@
 #include <string>
 #include <unordered_map>
 
-namespace py = pybind11;
 
-namespace droning {
+namespace droning::python {
+
+    namespace py = pybind11;
 
     template <typename PacketType>
     class PySystem {

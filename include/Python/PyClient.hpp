@@ -73,6 +73,7 @@ namespace droning::python {
         client_id_(std::move(client_id)),
         ptr_system_(std::move(ptr_system)),
         bufs_initialized_(false),
+        is_running_(false),
         auto_start_(auto_start),
         python_generating_func_(std::nullopt),
         python_processing_func_(std::nullopt)
@@ -98,6 +99,7 @@ namespace droning::python {
         client_id_(std::move(client_id)),
         ptr_system_(ptr_system),
         bufs_initialized_(false),
+        is_running_(false),
         auto_start_(auto_start)
         {
             assignGeneratingFunc(std::move(gen_func));
@@ -183,9 +185,26 @@ namespace droning::python {
          *
          * @return bool: True if client is running, otherwise false.
          */
-        [[nodiscard]] auto isRunnnig() -> bool { return is_running_; }
+        [[nodiscard]] auto isRunnning() -> bool { return is_running_; }
 
+        /**
+         * @brief Returns client inbox buffer.
+         *
+         * The returned unique pointer is owned by PyClient. Callers should use
+         * it as a borrowed handle and must not reset or move from it.
+         *
+         * @return u_ptr<SafeRingBuffer<PythonPacketType>>&: Inbox buffer handle.
+         */
         [[nodiscard]] auto getInboxBuffer() -> u_ptr<SafeRingBuffer<PythonPacketType>>& { return inbox_buf_; }
+
+        /**
+         * @brief Returns client outbox buffer.
+         *
+         * The returned unique pointer is owned by PyClient. Callers should use
+         * it as a borrowed handle and must not reset or move from it.
+         *
+         * @return u_ptr<SafeRingBuffer<PythonPacketType>>&: Outbox buffer handle.
+         */
         [[nodiscard]] auto getOutboxBuffer() -> u_ptr<SafeRingBuffer<PythonPacketType>>& { return outbox_buf_; }
 
     private:
@@ -304,7 +323,7 @@ namespace droning::python {
                 PythonPacketType incoming_data;
                 uint8_t res = inbox_buf_->safeWaitRead(&incoming_data);
                 if (!handleBufferResult(res, "inbox")) continue;
-                
+
                 {
                     // Acquiring gil only for execution pythonic function
                     py::gil_scoped_acquire gil;
@@ -326,7 +345,7 @@ namespace droning::python {
          * @param n: Client state notification.
          */
         auto notifySystem(__client_system_notification&& n) -> void {
-            if (!isRunnnig()) { return; }
+            if (!is_running_) { return; }
             try { ptr_system_->updateClientDescriptor(client_id_, n); }
             catch (std::exception& e) {
                 std::cerr << "System notifying failure!\n";

@@ -52,6 +52,34 @@ namespace droning::python {
             return clients_;
         }
 
+        auto routeToReceiver(
+            const std::unordered_map<std::string, __py_client_channel>& clients_snapshot,
+            PacketType message,
+            const std::string& receiver_id
+        ) -> bool {
+            const auto receiver = clients_snapshot.find(receiver_id);
+            if (receiver == clients_snapshot.end() || receiver->second.inbox_buf_ == nullptr) {
+                return false;
+            }
+
+            receiver->second.inbox_buf_->safeWrite(std::move(message));
+            ++routed_messages_;
+            return true;
+        }
+
+        auto routePacket(
+            const std::unordered_map<std::string, __py_client_channel>& clients_snapshot,
+            const PacketType& message
+        ) -> bool {
+            bool routed_any = false;
+
+            for (const auto& receiver_id : message.receivers_) {
+                routed_any = routeToReceiver(clients_snapshot, message, receiver_id) || routed_any;
+            }
+
+            return routed_any;
+        }
+
         auto routeMessages() -> void {
             while (is_running_) {
                 bool routed_any = false;
@@ -67,14 +95,7 @@ namespace droning::python {
                         auto res = channel.outbox_buf_->safeRead(&message);
                         if (res != 0x01) break;
 
-                        const auto receiver = clients_snapshot.find(message.receiver_);
-                        if (receiver == clients_snapshot.end() || receiver->second.inbox_buf_ == nullptr) {
-                            continue;
-                        }
-
-                        receiver->second.inbox_buf_->safeWrite(std::move(message));
-                        ++routed_messages_;
-                        routed_any = true;
+                        routed_any = routePacket(clients_snapshot, message) || routed_any;
                     }
                 }
 
@@ -147,11 +168,14 @@ namespace droning::python {
         }
 
         auto send(PacketType message) -> void {
-            if (message.receiver_.empty()) {
-                throw std::runtime_error("Message must contain a 'receiver' field");
+            if (message.receivers_.empty()) {
+                throw std::runtime_error("Message must contain a non-empty 'receivers' field");
             }
 
-            findClient(message.receiver_).inbox_buf_->safeWrite(std::move(message));
+            auto clients_snapshot = getClientsSnapshot();
+            if (!routePacket(clients_snapshot, message)) {
+                throw std::runtime_error("No receivers found for message");
+            }
         }
 
         auto receive(const std::string& client_id) -> std::optional<PacketType> {

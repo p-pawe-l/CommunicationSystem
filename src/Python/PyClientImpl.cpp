@@ -66,7 +66,7 @@ PYBIND11_MODULE(drone_system, m) {
                 system.send(droning::python::pyPacketFromObject(message));
             },
             py::arg("message"),
-            "Sends message to receiver selected by message['receiver']"
+            "Sends message to receivers selected by message['receivers']"
         )
         .def(
             "receive",

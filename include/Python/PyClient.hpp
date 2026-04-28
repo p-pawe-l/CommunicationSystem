@@ -19,6 +19,7 @@
 #include <optional>
 #include <chrono>
 #include <type_traits>
+#include <vector>
 
 
 namespace droning::python {
@@ -26,6 +27,7 @@ namespace droning::python {
     inline constexpr const char* PYTHON_FUNC_ATTR = "_client_func_type";
     inline constexpr const char* PYTHON_GEN_FUNC_MARK = "generate";
     inline constexpr const char* PYTHON_PROC_FUNC_MARK = "process";
+    inline constexpr std::size_t PY_CLIENT_PROCESS_BATCH_LIMIT = 64;
 
     namespace py = pybind11;
 
@@ -367,17 +369,30 @@ namespace droning::python {
                 res = inbox_buf_->safeWaitRead(&incoming_data);
 
                 if (res == 0x01) {
-                    py::gil_scoped_acquire gil;
-                    try {
-                        if constexpr (std::is_same_v<PythonPacketType, PyPacket>) {
-                            (python_processing_func_.value())(pyPacketToDict(incoming_data));
-                        } else {
-                            (python_processing_func_.value())(std::move(incoming_data));
-                        }
+                    std::vector<PythonPacketType> incoming_batch;
+                    incoming_batch.reserve(PY_CLIENT_PROCESS_BATCH_LIMIT);
+                    incoming_batch.push_back(std::move(incoming_data));
+
+                    while (incoming_batch.size() < PY_CLIENT_PROCESS_BATCH_LIMIT) {
+                        PythonPacketType next_data;
+                        const auto next_res = inbox_buf_->safeRead(&next_data);
+                        if (next_res != 0x01) break;
+                        incoming_batch.push_back(std::move(next_data));
                     }
-                    catch (std::exception& e) {
-                        std::cerr << "Error during execution python processing function" << std::endl;
-                        std::cerr << e.what() << std::endl;
+
+                    py::gil_scoped_acquire gil;
+                    for (auto& packet : incoming_batch) {
+                        try {
+                            if constexpr (std::is_same_v<PythonPacketType, PyPacket>) {
+                                (python_processing_func_.value())(pyPacketToDict(packet));
+                            } else {
+                                (python_processing_func_.value())(std::move(packet));
+                            }
+                        }
+                        catch (std::exception& e) {
+                            std::cerr << "Error during execution python processing function" << std::endl;
+                            std::cerr << e.what() << std::endl;
+                        }
                     }
                 }
 

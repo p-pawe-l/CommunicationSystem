@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import abc
-import logconf as log
+from Crazyflie import logconf as log
 
 
 class CrazyflieDataReceive_Callback(abc.ABC):

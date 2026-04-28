@@ -6,13 +6,14 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace droning::python {
 
     namespace py = pybind11;
 
     struct PyPacket {
-        std::string receiver_;
+        std::vector<std::string> receivers_;
         std::string sender_;
         std::string type_;
         std::unordered_map<std::string, double> numbers_;
@@ -20,14 +21,31 @@ namespace droning::python {
         std::unordered_map<std::string, bool> bools_;
     };
 
+    inline auto pyPacketAppendReceiver(PyPacket& packet, std::string receiver) -> void {
+        for (const auto& existing_receiver : packet.receivers_) {
+            if (existing_receiver == receiver) return;
+        }
+        packet.receivers_.push_back(std::move(receiver));
+    }
+
+    inline auto pyPacketAppendReceivers(PyPacket& packet, const py::object& raw_receivers) -> void {
+        for (py::handle receiver : raw_receivers) {
+            pyPacketAppendReceiver(packet, py::cast<std::string>(receiver));
+        }
+    }
+
     inline auto pyPacketFromObject(const py::object& raw_message) -> PyPacket {
         py::dict message = py::cast<py::dict>(raw_message);
-        if (!message.contains("receiver")) {
-            throw std::runtime_error("Message must contain a 'receiver' field");
+        PyPacket packet;
+
+        if (!message.contains("receivers") || message["receivers"].is_none()) {
+            throw std::runtime_error("Message must contain a non-empty 'receivers' field");
         }
 
-        PyPacket packet;
-        packet.receiver_ = py::cast<std::string>(message["receiver"]);
+        pyPacketAppendReceivers(packet, py::reinterpret_borrow<py::object>(message["receivers"]));
+        if (packet.receivers_.empty()) {
+            throw std::runtime_error("Message must contain a non-empty 'receivers' field");
+        }
 
         if (message.contains("sender") && !message["sender"].is_none()) {
             packet.sender_ = py::cast<std::string>(message["sender"]);
@@ -65,7 +83,9 @@ namespace droning::python {
 
     inline auto pyPacketToDict(const PyPacket& packet) -> py::dict {
         py::dict message;
-        message["receiver"] = packet.receiver_;
+        py::list receivers;
+        for (const auto& receiver : packet.receivers_) receivers.append(receiver);
+        message["receivers"] = std::move(receivers);
         message["sender"] = packet.sender_;
         message["type"] = packet.type_;
 

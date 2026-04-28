@@ -20,7 +20,7 @@ namespace droning {
         [[nodiscard]] auto getRBufMultiplier() const -> std::size_t;
 
     private:
-        Config(): ring_buf_size_(1024), routing_buf_size_multiplier_(5) {}
+        Config(): ring_buf_size_(2048), routing_buf_size_multiplier_(5) {}
 
         /* Config values */
         std::size_t ring_buf_size_;

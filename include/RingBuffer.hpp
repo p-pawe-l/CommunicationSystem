@@ -55,9 +55,10 @@ namespace droning {
             if (is_full_) {
                 read_ptr_ = (read_ptr_ + 1) % buffer_size_;
                 is_full_ = false;
+            } else {
+                ++size_;
             }
             buffer_[write_ptr_] = data;
-            ++size_;
 
             write_ptr_ = (write_ptr_ + 1) % buffer_size_;
             is_full_ = (write_ptr_ == read_ptr_);
@@ -96,7 +97,7 @@ namespace droning {
         [[nodiscard]] auto read() -> std::optional<T> {
             if (is_empty_) return std::nullopt;
 
-            auto data = buffer_[read_ptr_];
+            auto data = std::move(buffer_[read_ptr_]);
             read_ptr_ = (read_ptr_ + 1) % buffer_size_;
             --size_;
             is_full_ = false;
@@ -262,12 +263,18 @@ namespace droning {
          * * 0x01 - Success.
          */
         auto safeRead(T* placeholder) noexcept -> uint8_t {
+            uint8_t res = 0x01;
             {
                 std::lock_guard<std::mutex> guard(buf_mutex_);
-                *placeholder = RingBuffer<T>::read().value();
+                auto data = RingBuffer<T>::read();
+                if (data.has_value()) {
+                    *placeholder = std::move(data.value());
+                } else {
+                    res = 0x02;
+                }
             } 
-            not_full_.notify_one();
-            return 0x01;
+            if (res == 0x01) not_full_.notify_one();
+            return res;
         }
 
         /**

@@ -152,6 +152,12 @@ class Crazyflie_DroneClient(DroneClient):
             }
         )
 
+    def _read_callback_data(self, cb_id: str, missing_cb_msg: str):
+            callback_data = self.callbacks.get(cb_id, None)
+            if callback_data is None:
+                raise NoCallbackFoundException(missing_cb_msg, cb_id)                 
+            return callback_data.get_data()
+
     @func_decorators.generating_func
     def generate_drone_data(self) -> dict[str, typing.Any]:
         """Build the outgoing telemetry message for this drone.
@@ -160,16 +166,10 @@ class Crazyflie_DroneClient(DroneClient):
         returns them as a serialized system message. If any required callback
         is missing, returns a serialized error message instead.
         """
-        def read_callback_data(cb_id: str, missing_cb_msg: str):
-            callback_data = self.callbacks.get(cb_id, None)
-            if callback_data is None:
-                raise NoCallbackFoundException(missing_cb_msg, cb_id)                 
-            return callback_data.get_data()
-
         try:
-            position_data = read_callback_data("POSITION_CALLBACK", "Missing callback for reading drone position")
-            # velocity_data = read_callback_data("VELOCITY_CALLBACK", "Missing callback for reading drone velocity")
-            engine_data = read_callback_data("ENGINE_CALLBACK", "Missing callback for reading drone engine data")
+            position_data = self._read_callback_data("POSITION_CALLBACK", "Missing callback for reading drone position")
+            # velocity_data = self._read_callback_data("VELOCITY_CALLBACK", "Missing callback for reading drone velocity")
+            engine_data = self._read_callback_data("ENGINE_CALLBACK", "Missing callback for reading drone engine data")
 
             return self._get_telemetry_system_msg(position=position_data, 
                                                   #velocity=velocity_data.get_drone_velocity(),

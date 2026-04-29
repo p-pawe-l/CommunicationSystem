@@ -65,6 +65,12 @@ class NoCallbackFoundException(Exception):
         super().__init__(er_msg)
         self.missing_cb_key: str = missing_cb_key
 
+class InvalidKeyException(Exception):
+    def __init__(self, er_msg: str, wrong_key: str) -> None:
+        super().__init__(er_msg)
+        self.wrong_key: str = wrong_key
+
+
 class Crazyflie_DroneClient(DroneClient):
     def __init__(self,
                  uri: str,
@@ -177,21 +183,27 @@ class Crazyflie_DroneClient(DroneClient):
         except NoCallbackFoundException as e:
             LOGGER.debug(f"Missing {e.missing_cb_key} in callbacks | Drone {self.drone_name}")
             return self._get_error_system_msg(str(e)).to_dict()
-
+    
+    def _get_dict_data(self, pckg: dict[str, typing.Any], key: str) -> typing.Any:
+        data: typing.Any = pckg.get(key, None)
+        if data is None:
+            raise InvalidKeyException(er_msg="Provided invalid key", wrong_key=key)
+        return data
+        
     @func_decorators.processing_func
     def process_drone_data(self, message: dict[str, typing.Any]) -> None:
-        data: dict[str, typing.Any] = message.get("data", None)
-        if data is None:
-            LOGGER.debug(f"Missing data field in incoming package | Drone {self.drone_name}")
+        """Apply an incoming movement command to the drone.
+
+        Expects a message containing a ``data`` payload with ``power`` and
+        ``command`` fields. If any required field is missing, logs the issue
+        and ignores the message.
+        """
+        try:
+            data: dict[str, typing.Any] = self._get_dict_data(message, "data")
+            power: float = self._get_dict_data(data, "power")
+            command: Crazyflie_Movement = self._get_dict_data(data, "command")
+        except InvalidKeyException as e:
+            LOGGER.debug(f"Missing data field: {e.wrong_key} in incoming package | Drone {self.drone_name}")
             return
-        
-        power: float = data.get("power", None)
-        if power is None:
-            LOGGER.debug(f"Missing data:power field in incoming package | Drone {self.drone_name}")
-            return
-        command: Crazyflie_Movement = data.get("command", None)
-        if command is None:
-            LOGGER.debug(f"Missing data:command field in incoming package| Drone {self.drone_name}")
-            return
-        
+                
         self.movement_dispatch_manager.dispatch(command, power)

@@ -5,6 +5,8 @@ import func_decorators
 import abc
 import typing
 import dataclasses
+import logging
+LOGGER = logging.getLogger(name=__name__)
 
 import cflib
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
@@ -51,7 +53,8 @@ class Crazyflie_SetPoint_Values:
     pitch: int
     yawrate: int
     thrust: int
-    
+
+class NoDataReceiversException(Exception): ...
 
 class Crazyflie_DroneClient(DroneClient):
     def __init__(self,
@@ -60,15 +63,21 @@ class Crazyflie_DroneClient(DroneClient):
                  drone_name: str,
                  data_receivers: list[str],
                  cb_logger: Crazyflie_LogConf,
-                 init_callbacks: list[Crazyflie_Callback] = [Crazyflie_PositionCallback(), Crazyflie_VelocityCallback()],
                  is_mother: bool = False) -> None:
+        if not data_receivers:
+            LOGGER.error("Set data receivers before attach client to the system")
+            raise NoDataReceiversException("No data receivers")
+        
         super().__init__(system, drone_name, is_mother)
         self.uri: str = uri
         self.drone_name: str = drone_name
         self.data_receivers: list[str] = data_receivers
         self.cb_logger: Crazyflie_LogConf = cb_logger
-        self.cb_logger.add_callback(init_callbacks)
-        
+
+        self.callbacks: dict[str, Crazyflie_Callback] = {
+            "POSITION_CALLBACK": Crazyflie_PositionCallback(),
+        }
+
         # Starting values for each drone
         self.drone_setpoint: Crazyflie_SetPoint_Values = Crazyflie_SetPoint_Values(0, 0, 0, 0)
         self.drone_position: Crazyflie_Position_Values = Crazyflie_Position_Values(0, 0, 0)
@@ -108,22 +117,59 @@ class Crazyflie_DroneClient(DroneClient):
         self.drone_setpoint.thrust = new_thrust
         self._update_drone_setpoint()
 
-    @func_decorators.generating_func
-    def generate_drone_data(self) -> dict[str, typing.Any]:
-        msg: SystemMessage = SystemMessage(
+    def _get_error_system_msg(self, msg: str) -> None:
+        return SystemMessage(
             sender=self.drone_name,
             receivers=self.data_receivers,
-            data={
-                "position": self.drone_position,
-                "velocity": self.drone_velocity,
+            type="error",
+            data = {
+                "content": msg
             }
         )
-        return msg.to_dict()
+    
+    def _get_telemetry_system_msg(self, position: Crazyflie_Position_Values) -> None:
+        return SystemMessage(
+            sender=self.drone_name,
+            receivers=self.data_receivers,
+            type="telemetry",
+            data={
+                "x": position.x,
+                "y": position.y,
+                "z": position.z
+            }
+        )
+
+    @func_decorators.generating_func
+    def generate_drone_data(self) -> dict[str, typing.Any]:
+        position_data = self.callbacks.get("POSITION_CALLBACK", None)
+        if position_data is None:
+            LOGGER.debug(f"Missing POSITION_CALLBACK in callbacks | Drone: {self.drone_name}")
+            return self._get_error_system_msg("Missing callback to read position").to_dict()
+        
+        # Can be added in the future when VELOCITY CALLBACK is implemented 
+        # 
+        # velocity_data = self.callbacks.get("VELOCITY_CALLBACK", None)
+        # if velocity_data is None:
+        #     LOGGER.debug(f"Missing VELOCITY_CALLBACK in callbacks | Drone {self.drone_name}")
+        #     return self._get_error_system_msg("Missing callback to read position").to_dict()
+
+        position_data: Crazyflie_Position_Values = position_data.get_drone_position()            
+        return self._get_telemetry_system_msg(position=position_data).to_dict()
 
     @func_decorators.processing_func
-    def process_drone_data(self, message):
-        data: dict[str, typing.Any] = message.get("data")
-        power: float = data.get("power")
-        command: Crazyflie_Movement = data.get("command")
+    def process_drone_data(self, message: dict[str, typing.Any]) -> None:
+        data: dict[str, typing.Any] = message.get("data", None)
+        if data is None:
+            LOGGER.debug(f"Missing data field in incoming package | Drone {self.drone_name}")
+            return
+        
+        power: float = data.get("power", None)
+        if power is None:
+            LOGGER.debug(f"Missing data:power field in incoming package | Drone {self.drone_name}")
+            return
+        command: Crazyflie_Movement = data.get("command", None)
+        if command is None:
+            LOGGER.debug(f"Missing data:command field in incoming package| Drone {self.drone_name}")
+            return
         
         self.movement_dispatch_manager.dispatch(command, power)

@@ -14,7 +14,6 @@ class CrazyflieDataReceive_Callback(abc.ABC):
         ...
         
     def accept(self, logger: log.Crazyflie_LogConf) -> None:
-        print("Added data receive callback!")
         for var in self.vars:
             var_name: str = var[0]
             var_type: str = var[1]

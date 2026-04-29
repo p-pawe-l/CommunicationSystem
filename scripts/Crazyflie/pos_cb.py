@@ -1,5 +1,6 @@
 import dataclasses
 from Crazyflie import callback as cb
+from typing import Any
 
 
 @dataclasses.dataclass
@@ -8,6 +9,9 @@ class Crazyflie_Position_Values:
     y: int | float
     z: int | float
     
+    def to_dict(self) -> dict[str, Any]:
+        return dataclasses.asdict(self)
+
 
 class Crazyflie_PositionCallback(cb.CrazyflieDataReceive_Callback):
     def __init__(self, vars: tuple[tuple[str, str]] = (
@@ -18,8 +22,7 @@ class Crazyflie_PositionCallback(cb.CrazyflieDataReceive_Callback):
         super().__init__(vars=vars)
         self._drone_position: Crazyflie_Position_Values = Crazyflie_Position_Values(0, 0, 0)
         
-    @property
-    def drone_position(self) -> Crazyflie_Position_Values:
+    def get_drone_position(self) -> Crazyflie_Position_Values:
         return self._drone_position
         
     def log_func(self, timestamp, data, logconf) -> None:

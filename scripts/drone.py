@@ -201,9 +201,10 @@ class Crazyflie_DroneClient(DroneClient):
         try:
             data: dict[str, typing.Any] = self._get_dict_data(message, "data")
             power: float = self._get_dict_data(data, "power")
-            command: Crazyflie_Movement = self._get_dict_data(data, "command")
+            command: str = self._get_dict_data(data, "command")
+            
+            self.movement_dispatch_manager.dispatch(command, power)
         except InvalidKeyException as e:
             LOGGER.debug(f"Missing data field: {e.wrong_key} in incoming package | Drone {self.drone_name}")
             return
                 
-        self.movement_dispatch_manager.dispatch(command, power)

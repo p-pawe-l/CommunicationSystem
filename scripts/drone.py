@@ -28,13 +28,15 @@ from system_message import SystemMessage
 
 class DroneClient(abc.ABC):
     def __init__(self,
-                 system: drone_system.System, 
+                 system: drone_system.System,
+                 data_receivers: list[str], 
                  drone_name: str, 
                  is_mother: bool = False,
                  generating_func: typing.Callable | None = None,
                  processing_func: typing.Callable | None = None) -> None:        
         self.drone_name: str = drone_name
         self.is_mother: bool = is_mother
+        self.data_receivers: list[str] = data_receivers
         
         """
         User can provide generating and processing functions/callable classes 
@@ -47,29 +49,38 @@ class DroneClient(abc.ABC):
         self.proc_func: typing.Callable = self.process_drone_data if processing_func is None else processing_func
         
         self.client_instance: drone_system.Client = drone_system.Client(
-            self.drone_name, system, self.gen_func, self.proc_func, False
+            self.drone_name, system, self.gen_func, self.proc_func, True
         )
-        self.client_instance.start()
         
         
     @abc.abstractmethod
     @func_decorators.generating_func
     def generate_drone_data(self) -> dict[str, typing.Any]:
+        """Build one outbound system message with this drone's current telemetry."""
         pass
         
         
     @abc.abstractmethod
     @func_decorators.processing_func
     def process_drone_data(self, message) -> None:
+        """Handle one inbound system message addressed to this drone client."""
         pass
     
 
 @dataclasses.dataclass
 class Crazyflie_SetPoint_Values:
-    roll: int
-    pitch: int
-    yawrate: int
+    roll: float
+    pitch: float
+    yawrate: float
     thrust: int
+    
+    def to_dict(self) -> dict[str, int | float]:
+        return {
+            "roll": self.roll,
+            "pitch": self.pitch,
+            "yawrate": self.yawrate,
+            "thrust": self.thrust
+        }
 
 class NoDataReceiversException(Exception): ...
 
@@ -100,12 +111,11 @@ class Crazyflie_DroneClient(DroneClient):
         
         super().__init__(system=system, 
                          drone_name=drone_name, 
+                         data_receivers=data_receivers,
                          is_mother=is_mother, 
                          generating_func=generating_func, 
                          processing_func=processing_func)
         self.uri: str = uri
-        self.drone_name: str = drone_name
-        self.data_receivers: list[str] = data_receivers
         self.cb_logger: Crazyflie_LogConf = cb_logger
 
         self.callbacks: dict[str, Crazyflie_Callback] = {
@@ -122,10 +132,11 @@ class Crazyflie_DroneClient(DroneClient):
         self.drone: SyncCrazyflie = SyncCrazyflie(link_uri=uri, cf=Crazyflie(rw_cache='./cache'))
         self.drone.open_link()
         self.drone.cf.supervisor.send_arming_request(True)
-        self.drone.cf.commander.send_setpoint(**dataclasses.asdict(self.drone_setpoint))
+        self._update_drone_setpoint()
 
         self.drone.cf.log.add_config(self.cb_logger.get_cflib_LogConfig())
         self.cb_logger.start()
+        
         self.movement_dispatch_manager: Crazyflie_MovementDispatch_Manager = Crazyflie_MovementDispatch_Manager(
             change_roll=self._change_roll,
             change_pitch=self._change_pitch,
@@ -134,21 +145,25 @@ class Crazyflie_DroneClient(DroneClient):
         )        
     
     def _update_drone_setpoint(self) -> None:
-        self.drone.cf.commander.send_setpoint(**dataclasses.asdict(self.drone_setpoint))
+        self.drone.cf.commander.send_setpoint(**self.drone_setpoint.to_dict())
 
     def _change_roll(self, new_roll: float) -> None:
+        """Update the roll setpoint and immediately send it to the Crazyflie."""
         self.drone_setpoint.roll = new_roll
         self._update_drone_setpoint()
 
     def _change_pitch(self, new_pitch: float) -> None:
+        """Update the pitch setpoint and immediately send it to the Crazyflie."""
         self.drone_setpoint.pitch = new_pitch
         self._update_drone_setpoint()
         
     def _change_yawrate(self, new_yawrate: float) -> None:
+        """Update the yaw-rate setpoint and immediately send it to the Crazyflie."""
         self.drone_setpoint.yawrate = new_yawrate
         self._update_drone_setpoint()
 
     def _change_thrust(self, new_thrust: float) -> None:
+        """Update the thrust setpoint and immediately send it to the Crazyflie."""
         self.drone_setpoint.thrust = new_thrust
         self._update_drone_setpoint()
 

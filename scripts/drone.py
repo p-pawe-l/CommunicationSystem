@@ -30,11 +30,24 @@ class DroneClient(abc.ABC):
     def __init__(self,
                  system: drone_system.System, 
                  drone_name: str, 
-                 is_mother: bool = False) -> None:
+                 is_mother: bool = False,
+                 generating_func: typing.Callable | None = None,
+                 processing_func: typing.Callable | None = None) -> None:        
         self.drone_name: str = drone_name
         self.is_mother: bool = is_mother
+        
+        """
+        User can provide generating and processing functions/callable classes 
+        for generating and processing drone`s data. 
+        
+        If user provided callable objects, system client will use them, if not, default
+        functions for generating and processing data are used.
+        """
+        self.gen_func: typing.Callable = self.generate_drone_data if generating_func is None else generating_func
+        self.proc_func: typing.Callable = self.process_drone_data if processing_func is None else processing_func
+        
         self.client_instance: drone_system.Client = drone_system.Client(
-            self.drone_name, system, self.generate_drone_data, self.process_drone_data, False
+            self.drone_name, system, self.gen_func, self.proc_func, False
         )
         self.client_instance.start()
         
@@ -78,12 +91,18 @@ class Crazyflie_DroneClient(DroneClient):
                  drone_name: str,
                  data_receivers: list[str],
                  cb_logger: Crazyflie_LogConf,
-                 is_mother: bool = False) -> None:
+                 is_mother: bool = False,
+                 generating_func: typing.Callable | None = None,
+                 processing_func: typing.Callable | None = None) -> None:
         if not data_receivers:
-            LOGGER.error("Set data receivers before attach client to the system")
+            LOGGER.error("Set data receivers before attaching client to the system")
             raise NoDataReceiversException("No data receivers")
         
-        super().__init__(system, drone_name, is_mother)
+        super().__init__(system=system, 
+                         drone_name=drone_name, 
+                         is_mother=is_mother, 
+                         generating_func=generating_func, 
+                         processing_func=processing_func)
         self.uri: str = uri
         self.drone_name: str = drone_name
         self.data_receivers: list[str] = data_receivers

@@ -1,0 +1,19 @@
+name: CI Pipeline
+
+on:
+    pull_request:
+        branches: [main, master]
+        types: [opened, synchronize]
+permissions:
+    contents: write
+
+jobs:
+    setup:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Set up C++ building packages
+              uses: actions/checkout@v4
+            - name: Set up Python building packages
+              uses: actions/checkout@v4 
+
+        

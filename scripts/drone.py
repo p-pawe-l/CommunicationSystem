@@ -4,7 +4,7 @@ import drone_system
 import func_decorators
 import abc
 import typing
-import dataclasses
+from dataclasses import dataclass, fields
 import logging
 LOGGER = logging.getLogger(name=__name__)
 
@@ -67,7 +67,7 @@ class DroneClient(abc.ABC):
         pass
     
 
-@dataclasses.dataclass
+@dataclass
 class Crazyflie_SetPoint_Values:
     roll: float
     pitch: float
@@ -81,6 +81,23 @@ class Crazyflie_SetPoint_Values:
             "yawrate": self.yawrate,
             "thrust": self.thrust
         }
+    
+@dataclass
+class DroneState_Data:
+    position: Crazyflie_Position_Values | None
+    velocity: Crazyflie_Velocity_Values | None
+    enigne: Crazyflie_Engine_Values | None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, typing.Any]) -> DroneState_Data:
+        if (key.name not in list(data.keys()) for key in fields(cls)):
+            raise KeyError("Invalid keys provided for transformation")
+        return DroneState_Data(**data)
+
+    def to_dict(self) -> dict[str, typing.Any]:
+        data: dict[str, typing.Any] = {}
+        for key in fields(self):
+            data[key.name] = ... # TODO
 
 class NoDataReceiversException(Exception): ...
 

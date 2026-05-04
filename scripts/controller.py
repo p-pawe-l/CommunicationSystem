@@ -19,7 +19,7 @@ import typing
 import func_decorators
 
 
-class MovementManager(abc.ABC):
+class BaseMovementManager(abc.ABC):
     """Abstract command dispatcher for controller-issued movement actions.
 
     Parameters
@@ -39,7 +39,7 @@ class MovementManager(abc.ABC):
         ...
 
 
-class MovementController(abc.ABC):
+class BaseMovementController(abc.ABC):
     """Base class for controller clients connected to ``drone_system``.
 
     A movement controller wraps two callbacks:

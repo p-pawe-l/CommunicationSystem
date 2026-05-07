@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-import typing
+import typing 
 
 
 @dataclasses.dataclass
@@ -18,3 +18,4 @@ class SystemMessage:
             "type": self.type,
             "data": self.data
         }
+    

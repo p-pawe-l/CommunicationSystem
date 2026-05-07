@@ -55,7 +55,7 @@ class BaseMovementController(abc.ABC):
     def __init__(self,
                  controller_id: str,
                  data_receivers: list[str],
-                 movement_manager: MovementManager,
+                 movement_manager: BaseMovementManager,
                  gen_func: typing.Callable | None = None,
                  proc_func: typing.Callable| None = None) -> None:
         """Initialize the controller client and register its callbacks.
@@ -80,7 +80,7 @@ class BaseMovementController(abc.ABC):
         self.proc_func: typing.Callable = proc_func if proc_func is not None else self.process_controller_data
         self.data_receivers: list[str] = data_receivers
 
-        self.movement_dispatch_manager: MovementManager = movement_manager
+        self.movement_dispatch_manager: BaseMovementManager = movement_manager
 
         self.client_instance: drone_system.Client = drone_system.Client(
             controller_id, self.gen_func, self.proc_func, True

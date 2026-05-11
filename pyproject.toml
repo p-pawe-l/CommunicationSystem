@@ -11,5 +11,10 @@ dependencies = [
     "stable-baselines3",
 ]
 
+[project.optional-dependencies]
+crazyflie = [
+    "cflib",
+]
+
 [tool.scikit-build]
 build-dir = "build/{wheel_tag}"

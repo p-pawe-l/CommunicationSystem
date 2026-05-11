@@ -62,29 +62,34 @@ The main runtime idea is simple:
 - `scripts/Crazyflie/crazyflie_drone.py` connects the generic drone client to Crazyflie hardware through `cflib`.
 - `scripts/GUI/map_client.py` visualizes drone telemetry and routed messages.
 
-## Setup
+## Setup With uv
 
 The project targets Python 3.9+ and C++17. Python package metadata is defined in `pyproject.toml`.
+Install `uv` first if it is not already available on your machine.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
+uv sync
 ```
 
 For Crazyflie hardware support, install the Bitcraze Crazyflie Python library as well:
 
 ```bash
-pip install cflib
+uv sync --extra crazyflie
 ```
 
 ## Build
 
-The C++ core and Python extension are configured with CMake and `scikit-build-core`.
+The C++ core and Python extension are configured with CMake and `scikit-build-core`. Build the Python package with:
 
 ```bash
-cmake -S . -B build
-cmake --build build
+uv build
+```
+
+For direct CMake builds, run CMake inside the uv-managed environment:
+
+```bash
+uv run cmake -S . -B build
+uv run cmake --build build
 ```
 
 The build can produce:
@@ -97,14 +102,14 @@ The build can produce:
 After building the Python extension, run the GUI demo from the repository root:
 
 ```bash
-python drone_gui_demo.py
+uv run python drone_gui_demo.py
 ```
 
 Optional arguments:
 
 ```bash
-python drone_gui_demo.py --duration 30
-python drone_gui_demo.py --line-mode all
+uv run python drone_gui_demo.py --duration 30
+uv run python drone_gui_demo.py --line-mode all
 ```
 
 The demo creates simulated drones and controllers, starts the routing system, and displays live telemetry in the Pygame GUI.
@@ -112,6 +117,7 @@ The demo creates simulated drones and controllers, starts the routing system, an
 ## Development Notes
 
 - Generated files such as `__pycache__`, build outputs, logs, and local virtual environments are ignored through `.gitignore`.
+- Python environments and dependency resolution are managed with `uv`; run `uv sync` after changing `pyproject.toml`.
 - Python callbacks passed into `drone_system.Client` should be decorated with `@generating_func` or `@processing_func`.
 - Hardware-specific drone implementations should live outside `scripts/drone.py` so the base client remains independent of device libraries.
 
@@ -125,4 +131,3 @@ The demo creates simulated drones and controllers, starts the routing system, an
 - Add record and replay support for routed messages so demos and bugs can be reproduced from saved message logs.
 - Add a CLI for common workflows, such as running a YAML config, validating a config, replaying logs, and launching the GUI demo.
 - Add focused tests for routing behavior, callback decorators, movement dispatch, message serialization, and future YAML parsing.
-

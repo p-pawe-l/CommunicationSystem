@@ -1,6 +1,8 @@
 # Communication System
 
-Communication System is a mixed C++ and Python project for routing messages between drone clients, controllers, and visualization tools. The C++ layer provides the core ring-buffer based communication system and Python bindings through `pybind11`; the Python layer defines client abstractions, Crazyflie drone integration, controller helpers, and GUI support.
+Communication System is a packet-based drone communication project with a C++ backend and a Python API layer. It is mainly being developed for controlling and operating real drones, especially Bitcraze Crazyflie devices.
+
+The C++ layer provides the core ring-buffer based communication system and Python bindings through `pybind11`. The Python layer defines message helpers, client abstractions, controller abstractions, Crazyflie integration, and early GUI-related modules.
 
 ## Project Overview
 
@@ -11,13 +13,27 @@ The main runtime idea is simple:
 3. Python client classes provide generating and processing callbacks.
 4. Drone-specific packages, such as `scripts/Crazyflie`, implement hardware behavior on top of the generic client layer.
 
+## Current State
+
+This project is under active development. The core C++/Python communication layer, Python client abstractions, and Crazyflie support are the main focus right now.
+
+Current notes:
+
+- `uv.lock` is committed so contributors can reproduce the Python environment with `uv sync`.
+- Crazyflie telemetry callbacks and movement dispatch exist, but hardware workflows still need real-device validation.
+- GUI modules are present in `scripts/GUI`, but there is no current runnable GUI demo entry point.
+- YAML-based workflow declarations, a runner layer, simulated drones, and a CLI are planned but not implemented yet.
+
 ## Repository Structure
 
 ```text
 .
+├── .clang-format                  # C++ formatting rules
+├── .clang-tidy                    # C++ linting rules
 ├── CMakeLists.txt                  # C++ build and pybind11 module setup
 ├── Makefile                        # Project make entry point
 ├── pyproject.toml                  # Python package/build metadata
+├── uv.lock                         # Locked Python dependency resolution
 ├── main.cpp                        # C++ executable entry point
 ├── include/
 │   ├── Config.hpp                  # Shared C++ configuration
@@ -57,18 +73,29 @@ The main runtime idea is simple:
 - `include/Python/PySystem.hpp` routes messages between registered clients.
 - `include/Python/PyClient.hpp` runs Python generating and processing callbacks in worker threads.
 - `scripts/func_decorators.py` marks Python callbacks as data generators or processors.
+- `scripts/system_message.py` defines the message container used by Python client code.
 - `scripts/drone.py` defines the generic `DroneClient` base class.
 - `scripts/Crazyflie/crazyflie_drone.py` connects the generic drone client to Crazyflie hardware through `cflib`.
-- `scripts/GUI/map_client.py` visualizes drone telemetry and routed messages.
+- `scripts/Crazyflie/callback.py` defines shared cflib callback registration behavior.
+- `scripts/GUI/map_client.py` contains GUI map support, but there is no active demo entry point at the moment.
 
 ## Setup With uv
 
-The project targets Python 3.9+ and C++17. Python package metadata is defined in `pyproject.toml`.
-Install `uv` first if it is not already available on your machine.
+The project targets Python 3.9+ and C++17. Python package metadata is defined in `pyproject.toml`, and dependency resolution is locked in `uv.lock`.
+
+Install `uv` first if it is not already available on your machine, then sync from the lockfile:
 
 ```bash
 uv sync
 ```
+
+After changing dependencies in `pyproject.toml`, update the lockfile:
+
+```bash
+make lock
+```
+
+Commit `uv.lock` after dependency changes.
 
 For Crazyflie hardware support, install the Bitcraze Crazyflie Python library as well:
 
@@ -126,7 +153,6 @@ make lint
 Python formatting and linting use Ruff. C++ formatting uses `clang-format`, and C++ linting uses `clang-tidy` with the build directory as its compilation database source.
 
 ## Roadmap
-- NOTE: GUI is not working for now !
 - Add YAML configuration support for declaring system workflows, clients, receivers, update rates, and startup behavior.
 - Add a `SystemRunner` layer that can create the system, attach clients, start workers, and shut everything down cleanly from one entry point.
 - Add a client registry so YAML files can instantiate clients by type, such as `crazyflie`, `simulated_drone`, `controller`, or `gui`.

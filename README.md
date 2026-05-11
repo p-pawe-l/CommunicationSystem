@@ -31,6 +31,7 @@ Current notes:
 ├── .clang-format                  # C++ formatting rules
 ├── .clang-tidy                    # C++ linting rules
 ├── CMakeLists.txt                  # C++ build and pybind11 module setup
+├── docker-compose.yml              # Development container composition
 ├── Makefile                        # Project make entry point
 ├── pyproject.toml                  # Python package/build metadata
 ├── uv.lock                         # Locked Python dependency resolution
@@ -46,10 +47,12 @@ Current notes:
 │       ├── PyPacket.hpp            # Python packet conversion/binding model
 │       └── PySystem.hpp            # Python-facing message routing system
 ├── src/
+│   ├── Dockerfile.cpp              # C++ development container
 │   ├── Config.cpp                  # Config implementation
 │   └── Python/
 │       └── PyClientImpl.cpp        # pybind11 module implementation
 ├── scripts/
+│   ├── Dockerfile.python           # Python development container
 │   ├── controller.py               # Base controller abstractions
 │   ├── drone.py                    # Hardware-independent drone client base
 │   ├── func_decorators.py          # Callback metadata decorators
@@ -181,6 +184,43 @@ make test
 ```
 
 The shared CI pipeline runs these same Makefile targets after the independent C++ and Python pipelines are green.
+
+## Docker Development
+
+The repository provides separate development containers for the C++ and Python toolchains. Their Dockerfiles live near the parts of the project they support:
+
+- `src/Dockerfile.cpp` for the C++ backend toolchain.
+- `scripts/Dockerfile.python` for the Python API/tooling environment.
+
+Build both images:
+
+```bash
+docker compose build
+```
+
+Open a shell in the C++ environment:
+
+```bash
+docker compose run --rm cpp
+```
+
+Open a shell in the Python/uv environment:
+
+```bash
+docker compose run --rm python
+```
+
+Useful examples:
+
+```bash
+docker compose run --rm cpp make build
+docker compose run --rm cpp make lint-cpp
+docker compose run --rm python make sync-dev
+docker compose run --rm python make lint-python
+docker compose run --rm python make python-test
+```
+
+The Docker setup is intended for reproducible development and CI-like checks. Real Crazyflie hardware access may need additional USB/radio device configuration on the host.
 
 ## Roadmap
 - Add YAML configuration support for declaring system workflows, clients, receivers, update rates, and startup behavior.

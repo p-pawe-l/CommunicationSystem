@@ -116,7 +116,7 @@ The demo creates simulated drones and controllers, starts the routing system, an
 - Hardware-specific drone implementations should live outside `scripts/drone.py` so the base client remains independent of device libraries.
 
 ## Roadmap
-
+- NOTE: GUI is not working for now !
 - Add YAML configuration support for declaring system workflows, clients, receivers, update rates, and startup behavior.
 - Add a `SystemRunner` layer that can create the system, attach clients, start workers, and shut everything down cleanly from one entry point.
 - Add a client registry so YAML files can instantiate clients by type, such as `crazyflie`, `simulated_drone`, `controller`, or `gui`.
@@ -125,3 +125,4 @@ The demo creates simulated drones and controllers, starts the routing system, an
 - Add record and replay support for routed messages so demos and bugs can be reproduced from saved message logs.
 - Add a CLI for common workflows, such as running a YAML config, validating a config, replaying logs, and launching the GUI demo.
 - Add focused tests for routing behavior, callback decorators, movement dispatch, message serialization, and future YAML parsing.
+

@@ -35,6 +35,9 @@ Current notes:
 ├── pyproject.toml                  # Python package/build metadata
 ├── uv.lock                         # Locked Python dependency resolution
 ├── main.cpp                        # C++ executable entry point
+├── tests/
+│   ├── tests_cpp/                  # C++ tests
+│   └── tests_py/                   # Python tests
 ├── include/
 │   ├── Config.hpp                  # Shared C++ configuration
 │   ├── RingBuffer.hpp              # Thread-safe message buffer
@@ -151,6 +154,33 @@ make lint
 ```
 
 Python formatting and linting use Ruff. C++ formatting uses `clang-format`, and C++ linting uses `clang-tidy` with the build directory as its compilation database source.
+
+## Testing
+
+Tests are split by language:
+
+- C++ tests live in `tests/tests_cpp`.
+- Python tests live in `tests/tests_py`.
+
+Run only C++ tests:
+
+```bash
+make cpp-test
+```
+
+Run only Python tests:
+
+```bash
+make python-test
+```
+
+Run both test suites:
+
+```bash
+make test
+```
+
+The shared CI pipeline runs these same Makefile targets after the independent C++ and Python pipelines are green.
 
 ## Roadmap
 - Add YAML configuration support for declaring system workflows, clients, receivers, update rates, and startup behavior.

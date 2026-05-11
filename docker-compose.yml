@@ -1,0 +1,20 @@
+services:
+  cpp:
+    build:
+      context: .
+      dockerfile: src/Dockerfile.cpp
+    image: communication-system-cpp:dev
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: sh
+
+  python:
+    build:
+      context: .
+      dockerfile: scripts/Dockerfile.python
+    image: communication-system-python:dev
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: bash

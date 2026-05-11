@@ -1,0 +1,137 @@
+name: CPP Pipeline
+
+on:
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  cpp-format:
+    name: C++ format check
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3.20
+
+    steps:
+      - name: Install format dependencies
+        run: |
+          apk add --no-cache \
+            clang-extra-tools \
+            git \
+            nodejs
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check C++ formatting
+        run: |
+          clang-format --dry-run --Werror \
+            $(find include src -type f \( -name '*.hpp' -o -name '*.cpp' \)) \
+            main.cpp
+
+  cpp-build-gcc:
+    name: C++ build with GCC
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3.20
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          apk add --no-cache \
+            build-base \
+            cmake \
+            git \
+            ninja \
+            nodejs \
+            py3-pybind11 \
+            python3 \
+            python3-dev
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build-gcc \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++
+
+      - name: Build C++ targets
+        run: cmake --build build-gcc --parallel
+
+  cpp-build-clang:
+    name: C++ build with Clang
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3.20
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          apk add --no-cache \
+            build-base \
+            clang \
+            cmake \
+            git \
+            ninja \
+            nodejs \
+            py3-pybind11 \
+            python3 \
+            python3-dev
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build-clang \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++
+
+      - name: Build C++ targets
+        run: cmake --build build-clang --parallel
+
+  cpp-lint:
+    name: C++ lint with clang-tidy
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3.20
+
+    steps:
+      - name: Install lint dependencies
+        run: |
+          apk add --no-cache \
+            build-base \
+            clang \
+            clang-extra-tools \
+            cmake \
+            git \
+            ninja \
+            nodejs \
+            py3-pybind11 \
+            python3 \
+            python3-dev
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure compile database
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++
+
+      - name: Run clang-tidy
+        run: clang-tidy $(find src -type f -name '*.cpp') main.cpp -p build --quiet

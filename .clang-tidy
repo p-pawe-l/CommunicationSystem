@@ -1,0 +1,14 @@
+Checks: >
+  clang-analyzer-*,
+  bugprone-*,
+  performance-*,
+  readability-*,
+  modernize-*
+WarningsAsErrors: ''
+HeaderFilterRegex: '^(include|src)/.*'
+FormatStyle: file
+CheckOptions:
+  - key: readability-identifier-length.IgnoredVariableNames
+    value: '^[i,j,k,n]$'
+  - key: readability-identifier-length.IgnoredParameterNames
+    value: '^[i,j,k,n]$'

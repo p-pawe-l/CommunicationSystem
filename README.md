@@ -1,6 +1,6 @@
 # Communication System
 
-Communication System is a mixed C++ and Python project for routing messages between drone clients, controllers, and visualization tools. The C++ layer provides the core ring-buffer based communication system and Python bindings through `pybind11`; the Python layer defines client abstractions, Crazyflie drone integration, controller helpers, and a Pygame-based swarm map demo.
+Communication System is a mixed C++ and Python project for routing messages between drone clients, controllers, and visualization tools. The C++ layer provides the core ring-buffer based communication system and Python bindings through `pybind11`; the Python layer defines client abstractions, Crazyflie drone integration, controller helpers, and GUI support.
 
 ## Project Overview
 
@@ -18,7 +18,6 @@ The main runtime idea is simple:
 ├── CMakeLists.txt                  # C++ build and pybind11 module setup
 ├── Makefile                        # Project make entry point
 ├── pyproject.toml                  # Python package/build metadata
-├── drone_gui_demo.py               # Demo with simulated drones, controllers, and GUI
 ├── main.cpp                        # C++ executable entry point
 ├── include/
 │   ├── Config.hpp                  # Shared C++ configuration
@@ -97,29 +96,34 @@ The build can produce:
 - `app`: the C++ executable from `main.cpp`
 - `drone_system`: the Python extension module when `pybind11` is available
 
-## Demo
-
-After building the Python extension, run the GUI demo from the repository root:
-
-```bash
-uv run python drone_gui_demo.py
-```
-
-Optional arguments:
-
-```bash
-uv run python drone_gui_demo.py --duration 30
-uv run python drone_gui_demo.py --line-mode all
-```
-
-The demo creates simulated drones and controllers, starts the routing system, and displays live telemetry in the Pygame GUI.
-
 ## Development Notes
 
 - Generated files such as `__pycache__`, build outputs, logs, and local virtual environments are ignored through `.gitignore`.
 - Python environments and dependency resolution are managed with `uv`; run `uv sync` after changing `pyproject.toml`.
 - Python callbacks passed into `drone_system.Client` should be decorated with `@generating_func` or `@processing_func`.
 - Hardware-specific drone implementations should live outside `scripts/drone.py` so the base client remains independent of device libraries.
+
+## Formatting And Linting
+
+Install development tools with:
+
+```bash
+make sync-dev
+```
+
+Format Python and C++ sources:
+
+```bash
+make format
+```
+
+Run Python and C++ lint checks:
+
+```bash
+make lint
+```
+
+Python formatting and linting use Ruff. C++ formatting uses `clang-format`, and C++ linting uses `clang-tidy` with the build directory as its compilation database source.
 
 ## Roadmap
 - NOTE: GUI is not working for now !
@@ -129,5 +133,5 @@ The demo creates simulated drones and controllers, starts the routing system, an
 - Add a simulated drone backend for testing controllers, routing, and GUI behavior without real Crazyflie hardware.
 - Add message schema validation for required fields such as `sender`, `receivers`, `type`, and `data`, plus command and telemetry payload checks.
 - Add record and replay support for routed messages so demos and bugs can be reproduced from saved message logs.
-- Add a CLI for common workflows, such as running a YAML config, validating a config, replaying logs, and launching the GUI demo.
+- Add a CLI for common workflows, such as running a YAML config, validating a config, replaying logs, and launching GUI workflows.
 - Add focused tests for routing behavior, callback decorators, movement dispatch, message serialization, and future YAML parsing.

@@ -16,5 +16,21 @@ crazyflie = [
     "cflib",
 ]
 
+[dependency-groups]
+dev = [
+    "ruff>=0.6.0",
+]
+
 [tool.scikit-build]
 build-dir = "build/{wheel_tag}"
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
